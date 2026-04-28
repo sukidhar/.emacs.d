@@ -13,7 +13,30 @@
   :defer t
   :custom
   (vterm-always-compile-module t)
-  (vterm-module-cmake-args "-DCMAKE_OSX_DEPLOYMENT_TARGET= -DCMAKE_SHARED_MODULE_SUFFIX=.dylib"))
+  (vterm-module-cmake-args "-DCMAKE_OSX_DEPLOYMENT_TARGET= -DCMAKE_SHARED_MODULE_SUFFIX=.dylib")
+  (vterm-kill-buffer-on-exit t)
+  (vterm-shell "/opt/homebrew/bin/fish -l")
+)
+
+(use-package vterm-toggle
+  :ensure t
+  :after vterm
+  :custom
+  (vterm-toggle-fullscreen-p nil)
+  (vterm-toggle-scope 'project)
+  (vterm-toggle-project-root t)
+  (vterm-toggle-reset-window-configration-after-exit 'kill-window-only)
+  :config
+  (add-hook 'vterm-mode-hook (lambda () (run-at-time 0 nil #'helix-insert)))
+  (add-to-list 'display-buffer-alist
+               '((lambda (buffer-or-name _)
+                   (let ((buffer (get-buffer buffer-or-name)))
+                     (with-current-buffer buffer
+                       (or (equal major-mode 'vterm-mode)
+                           (string-prefix-p vterm-buffer-name (buffer-name buffer))))))
+                 (display-buffer-reuse-window display-buffer-at-bottom)
+                 (reusable-frames . visible)
+                 (window-height . 0.3))))
 
 (defvar my/lazygit--prev-win-config nil)
 
@@ -57,6 +80,10 @@
     (define-key git-map "g" #'my/lazygit-toggle)
     (helix-define-key 'space "g" git-map))
   (helix-define-key 'goto "w" #'avy-goto-word-1)
+  (helix-define-key 'normal (kbd "C-`") #'vterm-toggle)
+  (helix-define-key 'insert (kbd "C-`") #'vterm-toggle)
+  (helix-define-key 'normal (kbd "C-~") #'vterm-toggle-cd)
+  (helix-define-key 'insert (kbd "C-~") #'vterm-toggle-cd)
   (helix-mode))
 
 (use-package catppuccin-theme
@@ -110,10 +137,16 @@
   (plist-put minuet-openai-compatible-options :model "llama-3.3-70b-versatile")
   (plist-put minuet-openai-compatible-options :name "groq")
   (plist-put minuet-openai-compatible-options :api-key "GROQ_KEY")
-  (add-hook 'prog-mode-hook #'minuet-auto-suggestion-mode)
-  (dolist (buf (buffer-list))
-    (with-current-buffer buf
-      (when (derived-mode-p 'prog-mode)
-        (minuet-auto-suggestion-mode 1)))))
+)
+
+(with-eval-after-load 'doom-modeline
+  (setq doom-modeline-buffer-file-name-style 'truncate-upto-project
+        doom-modeline-minor-modes nil
+        doom-modeline-lsp t
+        doom-modeline-env-version t
+        doom-modeline-buffer-encoding nil
+        doom-modeline-indent-info t
+        doom-modeline-vcs-max-length 20
+        doom-modeline-project-detection 'project))
 
 ;;; custom-post.el ends here

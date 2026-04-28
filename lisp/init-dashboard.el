@@ -50,20 +50,25 @@
            ("S" . find-custom-file)
            ("U" . update-config-and-packages)
            ("q" . quit-dashboard))
-    :hook (dashboard-mode . (lambda () (setq-local frame-title-format nil)))
+    :hook (dashboard-mode . (lambda ()
+                              (setq-local frame-title-format nil)
+                              (setq-local truncate-lines t)
+                              (local-set-key (kbd "<wheel-up>") #'ignore)
+                              (local-set-key (kbd "<wheel-down>") #'ignore)
+                              (local-set-key (kbd "C-v") #'ignore)
+                              (local-set-key (kbd "M-v") #'ignore)))
     :init
-    (setq dashboard-banner-logo-title "CENTAUR EMACS - Enjoy Programming & Writing"
+    (setq dashboard-banner-logo-title "C A T I X"
           dashboard-startup-banner (or centaur-logo 'official)
-          dashboard-page-separator "\n\f\n"
+          dashboard-page-separator "\n"
           dashboard-projects-backend 'project-el
           dashboard-path-style 'truncate-middle
           dashboard-path-max-length 60
           dashboard-center-content t
-          dashboard-vertically-center-content t
+          dashboard-vertically-center-content nil
           dashboard-show-shortcuts nil
-          dashboard-items '((recents  . 10)
-                            (bookmarks . 5)
-                            (projects . 5))
+          dashboard-items '((projects . 5)
+                            (recents  . 3))
 
           dashboard-startupify-list '(dashboard-insert-banner
                                       dashboard-insert-newline
@@ -111,7 +116,8 @@
           dashboard-footer-icon
           (if (icons-displayable-p)
               (nerd-icons-octicon "nf-oct-heart" :height 1.2 :face 'nerd-icons-lred)
-            (propertize ">" 'face 'dashboard-footer)))
+            (propertize ">" 'face 'dashboard-footer))
+          dashboard-footer-messages '("Happy hacking!" "Code is poetry." "Make something beautiful today."))
 
     (dashboard-setup-startup-hook)
     :config
@@ -121,7 +127,7 @@
       (defun my/dashboard-insert-copyright ()
         "Insert copyright in the footer."
         (dashboard-insert-center
-         (propertize (format "\nPowered by Centaur Studio, %s\n" (format-time-string "%Y"))
+         (propertize (format "\nPowered by Suki, %s\n" (format-time-string "%Y"))
                      'face 'font-lock-comment-face)))
       (advice-add #'dashboard-insert-footer :after #'my/dashboard-insert-copyright)
 

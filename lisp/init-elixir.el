@@ -30,25 +30,57 @@
 
 ;;; Code:
 
-(defun elixir-auto-config ()
-  "Configure elixir automatically."
-  (use-package alchemist
-    :diminish (alchemist-mode alchemist-phoenix-mode)
-    :hook ((elixir-mode elixir-ts-mode)
-           (alchemist-mode . alchemist-phoenix-mode))))
+(eval-when-compile
+  (require 'init-custom))
 
 (if (centaur-treesit-available-p)
-    (use-package elixir-ts-mode
-      :functions centaur-treesit-available-p
-      :mode (("\\.elixir\\'" . elixir-ts-mode)
-             ("\\.ex\\'"     . elixir-ts-mode)
-             ("\\.exs\\'"    . elixir-ts-mode)
-             ("mix\\.lock"   . elixir-ts-mode))
-      :config (elixir-auto-config))
-  (use-package elixir-mode
-    :config (elixir-auto-config)))
+    (progn
+      (use-package elixir-ts-mode
+        :functions centaur-treesit-available-p
+        :mode (("\\.elixir\\'" . elixir-ts-mode)
+               ("\\.ex\\'"     . elixir-ts-mode)
+               ("\\.exs\\'"    . elixir-ts-mode)
+               ("mix\\.lock"   . elixir-ts-mode)))
+      (use-package heex-ts-mode
+        :mode "\\.heex\\'"))
+  (use-package elixir-mode))
 
-  (provide 'init-elixir)
+(use-package emmet-mode
+  :hook (heex-ts-mode web-mode sgml-mode css-mode))
+
+(pcase centaur-lsp
+  ('lsp-mode
+   (with-eval-after-load 'lsp-mode
+     (add-to-list 'lsp-language-id-configuration '(elixir-ts-mode . "elixir"))
+     (add-to-list 'lsp-language-id-configuration '(heex-ts-mode . "html"))
+
+     ;; tailwindcss: add-on for .heex
+     (lsp-register-client
+      (make-lsp-client
+       :new-connection (lsp-stdio-connection '("tailwindcss-language-server" "--stdio"))
+       :activation-fn (lsp-activate-on "html")
+       :server-id 'tailwindcss-heex
+       :add-on? t
+       :notification-handlers (ht ("@/tailwindCSS/projectInitialized" #'ignore)))))
+
+   (add-hook 'heex-ts-mode-hook #'lsp-deferred)
+   (add-hook 'heex-ts-mode-hook
+             (lambda ()
+               (setq-local lsp-enable-formatting nil)
+               (apheleia-mode -1)
+               (add-hook 'after-save-hook
+                         (lambda ()
+                           (let ((default-directory (locate-dominating-file buffer-file-name "mix.exs")))
+                             (when default-directory
+                               (let ((exit-code (call-process "mix" nil nil nil "format" buffer-file-name)))
+                                 (when (= exit-code 0)
+                                   (revert-buffer t t t))))))
+                         nil t))))
+
+  ('eglot
+   (add-hook 'heex-ts-mode-hook #'eglot-ensure)))
+
+(provide 'init-elixir)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; init-elixir.el ends here
