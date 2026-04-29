@@ -86,18 +86,81 @@
     (define-key git-map "g" #'my/lazygit-toggle)
     (helix-define-key 'space "g" git-map))
   (let ((toggle-map (make-sparse-keymap)))
-    (define-key toggle-map "t" #'treemacs)
+    (define-key toggle-map "t" #'treemacs-display-current-project-exclusively)
+    (define-key toggle-map "r" #'tabspaces-restore-session)
+    (define-key toggle-map "s" #'tabspaces-save-session)
     (helix-define-key 'space "t" toggle-map))
-  (helix-define-key 'goto "w" #'avy-goto-word-1)
+  (let ((claude-map (make-sparse-keymap)))
+    (define-key claude-map "c" #'claudemacs-start-menu)
+    (define-key claude-map "t" (lambda () (interactive)
+                                          (claudemacs-toggle-buffer)
+                                          (when (string-match-p "^\\*claudemacs" (buffer-name))
+                                            (helix-insert))))
+    (define-key claude-map "e" #'claudemacs-transient-menu)
+    (define-key claude-map "f" #'claudemacs-add-current-file-reference)
+    (define-key claude-map "a" #'claudemacs-ask-without-context)
+    (define-key claude-map "k" #'claudemacs-kill)
+    (helix-define-key 'space "c" claude-map))
+  (let ((project-map (make-sparse-keymap)))
+    (define-key project-map "p" #'project-switch-project)
+    (helix-define-key 'space "p" project-map))
+  (helix-define-key 'goto "w" #'avy-goto-char-timer)
   (helix-define-key 'normal (kbd "C-`") #'vterm-toggle)
   (helix-define-key 'insert (kbd "C-`") #'vterm-toggle)
   (helix-define-key 'normal (kbd "C-~") #'vterm-toggle-cd)
   (helix-define-key 'insert (kbd "C-~") #'vterm-toggle-cd)
   (helix-mode))
 
+(use-package eat
+  :ensure t)
+
+(use-package claudemacs
+  :ensure t
+  :commands (claudemacs-toggle-buffer claudemacs-start-menu claudemacs-kill
+             claudemacs-transient-menu claudemacs-add-current-file-reference
+             claudemacs-execute-request claudemacs-ask-without-context)
+  :vc (:url "https://github.com/cpoile/claudemacs" :branch "main")
+  :bind (:map prog-mode-map
+         ("C-c C-e" . claudemacs-transient-menu))
+  :config
+  (add-to-list 'display-buffer-alist
+               '("^\\*claudemacs" (display-buffer-in-side-window)
+                 (side . right) (window-width . 0.4)))
+  (with-eval-after-load 'eat
+    (define-key eat-semi-char-mode-map (kbd "C-c t") #'claudemacs-toggle-buffer))
+  (add-hook 'eat-exit-hook
+            (lambda (_process)
+              (when-let* ((buf (current-buffer))
+                          (win (get-buffer-window buf)))
+                (when (string-match-p "^\\*claudemacs" (buffer-name buf))
+                  (delete-window win))))))
+
+(setq initial-buffer-choice (lambda () (get-buffer-create dashboard-buffer-name)))
+
+(setq auto-save-visited-interval 5)
+(auto-save-visited-mode +1)
+
+(setq frame-title-format '("Catix - %b")
+      icon-title-format frame-title-format)
+
 (with-eval-after-load 'corfu
   (when (fboundp 'global-company-mode) (global-company-mode -1))
   (add-hook 'corfu-mode-hook (lambda () (when (bound-and-true-p company-mode) (company-mode -1)))))
+
+(with-eval-after-load 'lsp-mode
+  (add-to-list 'lsp-disabled-clients 'jsts-ls))
+
+(use-package apheleia
+  :ensure t
+  :config
+  (setf (alist-get 'prettier apheleia-formatters)
+        '("npx" "prettier" "--stdin-filepath" filepath))
+  (setf (alist-get 'js-mode apheleia-mode-alist) '(prettier))
+  (setf (alist-get 'js-ts-mode apheleia-mode-alist) '(prettier))
+  (setf (alist-get 'typescript-mode apheleia-mode-alist) '(prettier))
+  (setf (alist-get 'typescript-ts-mode apheleia-mode-alist) '(prettier))
+  (setf (alist-get 'tsx-ts-mode apheleia-mode-alist) '(prettier))
+  (apheleia-global-mode +1))
 
 (use-package rainbow-mode
   :ensure t

@@ -19,7 +19,7 @@
 ;; (setq centaur-dashboard nil)                   ; Display dashboard at startup or not: t or nil
 (setq centaur-lsp 'lsp-mode)                      ; Set LSP client: lsp-mode, eglot or nil
 (setq centaur-lsp-format-on-save t)               ; Auto format buffers on save: t or nil
-(setq centaur-lsp-format-on-save-ignore-modes '(elixir-ts-mode heex-ts-mode))
+(setq centaur-lsp-format-on-save-ignore-modes '(elixir-ts-mode heex-ts-mode js-mode js-ts-mode typescript-mode typescript-ts-mode tsx-ts-mode))
 ;; (setq centaur-tree-sitter nil)                 ; Enable tree-sitter or not: t or nil. Only available in 29+.
 ;; (setq centaur-chinese-calendar t)              ; Support Chinese calendar or not: t or nil
 ;; (setq centaur-player t)                        ; Enable players or not: t or nil
@@ -115,7 +115,8 @@
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(package-vc-selected-packages
-   '((helix :url "https://github.com/mgmarlow/helix-mode" :branch "main")))
+   '((claudemacs :url "https://github.com/cpoile/claudemacs" :branch "main")
+     (helix :url "https://github.com/mgmarlow/helix-mode" :branch "main")))
  '(warning-suppress-types '((treesit))))
 
 (custom-set-faces
