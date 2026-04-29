@@ -33,6 +33,7 @@
 (eval-when-compile
   (require 'init-custom))
 
+;; Tree-sitter modes
 (if (centaur-treesit-available-p)
     (progn
       (use-package elixir-ts-mode
@@ -45,37 +46,59 @@
         :mode "\\.heex\\'"))
   (use-package elixir-mode))
 
+;; Emmet expansion in templates and html/css
 (use-package emmet-mode
-  :hook (heex-ts-mode web-mode sgml-mode css-mode))
+  :hook (heex-ts-mode web-mode sgml-mode html-mode html-ts-mode css-mode css-ts-mode))
 
+;; Format elixir/heex with mix format instead of LSP formatter
+(defun my/elixir-mix-format-on-save ()
+  (when (fboundp 'apheleia-mode) (apheleia-mode -1))
+  (add-hook 'after-save-hook
+            (lambda ()
+              (let ((default-directory (locate-dominating-file buffer-file-name "mix.exs")))
+                (when default-directory
+                  (let ((exit-code (call-process "mix" nil nil nil "format" buffer-file-name)))
+                    (when (= exit-code 0)
+                      (revert-buffer t t t))))))
+            nil t))
+
+(add-hook 'elixir-ts-mode-hook #'my/elixir-mix-format-on-save)
+(add-hook 'heex-ts-mode-hook #'my/elixir-mix-format-on-save)
+
+;; LSP configuration
 (pcase centaur-lsp
   ('lsp-mode
    (with-eval-after-load 'lsp-mode
-     (add-to-list 'lsp-language-id-configuration '(elixir-ts-mode . "elixir"))
-     (add-to-list 'lsp-language-id-configuration '(heex-ts-mode . "html"))
+     ;; Disable built-in elixir-ls to avoid conflicts
+     (add-to-list 'lsp-disabled-clients 'elixir-ls)
 
-     ;; tailwindcss: add-on for .heex
+     (add-to-list 'lsp-language-id-configuration '(elixir-ts-mode . "elixir"))
+     (add-to-list 'lsp-language-id-configuration '(heex-ts-mode . "phoenix-heex"))
+
+     ;; Lexical — Elixir language server (elixir + heex)
      (lsp-register-client
       (make-lsp-client
-       :new-connection (lsp-stdio-connection '("tailwindcss-language-server" "--stdio"))
-       :activation-fn (lsp-activate-on "html")
-       :server-id 'tailwindcss-heex
-       :add-on? t
-       :notification-handlers (ht ("@/tailwindCSS/projectInitialized" #'ignore)))))
+       :new-connection (lsp-stdio-connection
+                        '("/Users/suki/Projects/config/elixir/lexical/_build/dev/package/lexical/bin/start_lexical.sh"))
+       :activation-fn (lsp-activate-on "elixir" "phoenix-heex")
+       :server-id 'lexical))
 
+     ;; Tailwind CSS as add-on server (heex, html, css)
+     (let ((handlers (make-hash-table :test 'equal)))
+       (puthash "@/tailwindCSS/projectInitialized" #'ignore handlers)
+       (lsp-register-client
+        (make-lsp-client
+         :new-connection (lsp-stdio-connection '("tailwindcss-language-server" "--stdio"))
+         :activation-fn (lsp-activate-on "phoenix-heex" "html" "css")
+         :server-id 'tailwindcss
+         :add-on? t
+         :notification-handlers handlers))))
+
+   ;; heex derives from html-mode not prog-mode — needs explicit lsp hook
    (add-hook 'heex-ts-mode-hook #'lsp-deferred)
-   (add-hook 'heex-ts-mode-hook
-             (lambda ()
-               (setq-local lsp-enable-formatting nil)
-               (apheleia-mode -1)
-               (add-hook 'after-save-hook
-                         (lambda ()
-                           (let ((default-directory (locate-dominating-file buffer-file-name "mix.exs")))
-                             (when default-directory
-                               (let ((exit-code (call-process "mix" nil nil nil "format" buffer-file-name)))
-                                 (when (= exit-code 0)
-                                   (revert-buffer t t t))))))
-                         nil t))))
+   ;; html/css get lsp for tailwind + native html-ls
+   (add-hook 'html-mode-hook #'lsp-deferred)
+   (add-hook 'css-mode-hook #'lsp-deferred))
 
   ('eglot
    (add-hook 'heex-ts-mode-hook #'eglot-ensure)))

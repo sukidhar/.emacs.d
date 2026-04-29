@@ -86,6 +86,14 @@
   (helix-define-key 'insert (kbd "C-~") #'vterm-toggle-cd)
   (helix-mode))
 
+(with-eval-after-load 'corfu
+  (when (fboundp 'global-company-mode) (global-company-mode -1))
+  (add-hook 'corfu-mode-hook (lambda () (when (bound-and-true-p company-mode) (company-mode -1)))))
+
+(use-package rainbow-mode
+  :ensure t
+  :hook (css-mode css-ts-mode heex-ts-mode elixir-ts-mode web-mode html-mode))
+
 (use-package catppuccin-theme
   :ensure t
   :demand t
