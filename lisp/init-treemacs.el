@@ -56,7 +56,7 @@
         treemacs-user-mode-line-format   'none
         treemacs-sorting                 'alphabetic-asc
         treemacs-follow-after-init       t
-        treemacs-width                   30
+        treemacs-width                   40
         treemacs-no-png-images           (not centaur-icon))
 
   (treemacs-follow-mode t)
