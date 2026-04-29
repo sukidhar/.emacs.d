@@ -4,10 +4,10 @@
 ;;;       This file is loaded in early-init.el.
 ;;; Code:
 
-;; asdf shims must come before homebrew
-(let ((asdf-shims (expand-file-name "~/.asdf/shims")))
-  (setenv "PATH" (concat asdf-shims ":" (getenv "PATH")))
-  (add-to-list 'exec-path asdf-shims))
+;; mise shims must come before homebrew
+(let ((mise-shims (expand-file-name "~/.local/share/mise/shims")))
+  (setenv "PATH" (concat mise-shims ":" (getenv "PATH")))
+  (add-to-list 'exec-path mise-shims))
 
 ;; Improve LSP performance for lsp-mode
 (setenv "LSP_USE_PLISTS" "true")

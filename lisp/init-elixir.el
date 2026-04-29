@@ -55,11 +55,22 @@
   (when (fboundp 'apheleia-mode) (apheleia-mode -1))
   (add-hook 'after-save-hook
             (lambda ()
-              (let ((default-directory (locate-dominating-file buffer-file-name "mix.exs")))
+              (let ((default-directory (locate-dominating-file buffer-file-name "mix.exs"))
+                    (file buffer-file-name)
+                    (buf (current-buffer)))
                 (when default-directory
-                  (let ((exit-code (call-process "mix" nil nil nil "format" buffer-file-name)))
-                    (when (= exit-code 0)
-                      (revert-buffer t t t))))))
+                  (let ((proc (start-process
+                               "mix-format" nil
+                               "fish" "-lc"
+                               (format "mix format %s" (shell-quote-argument file)))))
+                    (set-process-sentinel
+                     proc
+                     (lambda (p _event)
+                       (when (and (eq (process-status p) 'exit)
+                                  (= (process-exit-status p) 0)
+                                  (buffer-live-p buf))
+                         (with-current-buffer buf
+                           (revert-buffer t t t)))))))))
             nil t))
 
 (add-hook 'elixir-ts-mode-hook #'my/elixir-mix-format-on-save)

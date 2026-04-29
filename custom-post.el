@@ -1,6 +1,12 @@
 ;;; custom-post.el --- user post-customization file    -*- lexical-binding: t -*-
 ;;; Code:
 
+;; Ensure mise shims are on PATH (early-init may be overridden by macOS)
+(let ((mise-shims (expand-file-name "~/.local/share/mise/shims")))
+  (unless (string-match-p "mise/shims" (getenv "PATH"))
+    (setenv "PATH" (concat mise-shims ":" (getenv "PATH")))
+    (add-to-list 'exec-path mise-shims)))
+
 (defun fix-case-sensitive-path (args)
   "Resolve true filesystem case for file paths to avoid gopls errors."
   (let ((filename (car args)))
