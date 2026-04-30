@@ -24,6 +24,70 @@
   (vterm-shell "/opt/homebrew/bin/fish -l")
 )
 
+(use-package git-link
+  :ensure t
+  :commands (git-link git-link-commit git-link-homepage)
+  :config
+  (setq git-link-open-in-browser nil
+        git-link-use-commit t))
+
+(defun my/dotenv-find-file ()
+  "Return path to .env if present, else .env.example, else nil.
+Resolved relative to `default-directory'."
+  (cl-loop for name in '(".env" ".env.example")
+           for path = (expand-file-name name default-directory)
+           when (file-readable-p path) return path))
+
+(defun my/dotenv-parse (path)
+  "Parse PATH (a dotenv file) into a list of \"KEY=VALUE\" strings.
+Skips comments and blank lines; strips surrounding single/double quotes
+on values; ignores `export ' prefix."
+  (with-temp-buffer
+    (insert-file-contents path)
+    (let (out)
+      (goto-char (point-min))
+      (while (not (eobp))
+        (let ((line (string-trim
+                     (buffer-substring-no-properties
+                      (line-beginning-position) (line-end-position)))))
+          (unless (or (string-empty-p line) (string-prefix-p "#" line))
+            (let ((s (if (string-prefix-p "export " line) (substring line 7) line)))
+              (when (string-match "\\`\\([A-Za-z_][A-Za-z0-9_]*\\)=\\(.*\\)\\'" s)
+                (let* ((k (match-string 1 s))
+                       (v (match-string 2 s))
+                       (v (if (and (>= (length v) 2)
+                                   (or (and (string-prefix-p "\"" v) (string-suffix-p "\"" v))
+                                       (and (string-prefix-p "'" v)  (string-suffix-p "'" v))))
+                              (substring v 1 -1)
+                            v)))
+                  (push (concat k "=" v) out))))))
+        (forward-line 1))
+      (nreverse out))))
+
+(defun my/project-root ()
+  "Return the outermost project root for `default-directory'.
+Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
+  (or (when-let ((d (locate-dominating-file default-directory "mix.exs")))
+        (file-name-as-directory (expand-file-name d)))
+      (when-let ((d (vc-root-dir)))
+        (file-name-as-directory (expand-file-name d)))
+      (and (fboundp 'project-current)
+           (when-let ((p (project-current))) (project-root p)))
+      default-directory))
+
+(defun my/vterm-with-dotenv (orig &rest args)
+  "Open vterm at project root with project .env (or .env.example) loaded."
+  (let* ((default-directory (my/project-root))
+         (path (my/dotenv-find-file))
+         (extra (and path (my/dotenv-parse path)))
+         (process-environment (if extra (append extra process-environment)
+                                process-environment)))
+    (when path (message "vterm: loaded %s" (file-name-nondirectory path)))
+    (apply orig args)))
+
+(with-eval-after-load 'vterm
+  (advice-add 'vterm--internal :around #'my/vterm-with-dotenv))
+
 (use-package vterm-toggle
   :ensure t
   :after vterm
@@ -84,6 +148,9 @@
   (helix-define-key 'normal (kbd "C-M-9") #'transwin-inc)
   (let ((git-map (make-sparse-keymap)))
     (define-key git-map "g" #'my/lazygit-toggle)
+    (define-key git-map "l" #'git-link)
+    (define-key git-map "L" #'git-link-commit)
+    (define-key git-map "h" #'git-link-homepage)
     (helix-define-key 'space "g" git-map))
   (let ((toggle-map (make-sparse-keymap)))
     (define-key toggle-map "t" #'treemacs-display-current-project-exclusively)
@@ -113,6 +180,14 @@
     (define-key docs-map "f" #'consult-gh-find-file)
     (define-key docs-map "G" #'my/pkg-go-dev)
     (helix-define-key 'space "h" docs-map))
+  (helix-define-key 'space "y" #'helix-kill-ring-save)
+  (helix-define-key 'space "Y" #'kill-ring-save)
+  (helix-define-key 'normal (kbd "C-u") #'my/scroll-up-half)
+  (helix-define-key 'normal (kbd "C-d") #'my/scroll-down-half)
+  (helix-define-key 'insert (kbd "C-u") #'my/scroll-up-half)
+  (helix-define-key 'insert (kbd "C-d") #'my/scroll-down-half)
+  (helix-define-key 'normal "zt" (lambda () (interactive) (recenter 0)))
+  (helix-define-key 'normal "zb" (lambda () (interactive) (recenter -1)))
   (helix-define-key 'goto "w" #'avy-goto-char-timer)
   (helix-define-key 'normal (kbd "C-`") #'vterm-toggle)
   (helix-define-key 'insert (kbd "C-`") #'vterm-toggle)
@@ -144,10 +219,41 @@
                 (when (string-match-p "^\\*claudemacs" (buffer-name buf))
                   (delete-window win))))))
 
-(setq initial-buffer-choice (lambda () (get-buffer-create dashboard-buffer-name)))
+(setq initial-buffer-choice
+      (lambda ()
+        (if (> (length command-line-args) 1)
+            (current-buffer)
+          (get-buffer-create dashboard-buffer-name))))
 
 (setq auto-save-visited-interval 5)
 (auto-save-visited-mode +1)
+
+(when (fboundp 'pixel-scroll-precision-mode)
+  (pixel-scroll-precision-mode 1)
+  (setq pixel-scroll-precision-interpolate-page t
+        pixel-scroll-precision-use-momentum t))
+
+(setq display-line-numbers-type 'relative)
+
+(defun my/scroll-down-half ()
+  "Scroll down half a window with smooth interpolation."
+  (interactive)
+  (if (and (bound-and-true-p pixel-scroll-precision-mode)
+           (fboundp 'pixel-scroll-precision-interpolate))
+      (pixel-scroll-precision-interpolate
+       (- (/ (window-text-height nil t) 2)) nil 1)
+    (forward-line (/ (window-body-height) 2))
+    (recenter)))
+
+(defun my/scroll-up-half ()
+  "Scroll up half a window with smooth interpolation."
+  (interactive)
+  (if (and (bound-and-true-p pixel-scroll-precision-mode)
+           (fboundp 'pixel-scroll-precision-interpolate))
+      (pixel-scroll-precision-interpolate
+       (/ (window-text-height nil t) 2) nil 1)
+    (forward-line (- (/ (window-body-height) 2)))
+    (recenter)))
 
 (setq frame-title-format '("Catix - %b")
       icon-title-format frame-title-format)

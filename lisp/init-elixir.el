@@ -86,13 +86,13 @@
      (add-to-list 'lsp-language-id-configuration '(elixir-ts-mode . "elixir"))
      (add-to-list 'lsp-language-id-configuration '(heex-ts-mode . "phoenix-heex"))
 
-     ;; Lexical — Elixir language server (elixir + heex)
+     ;; Dexter — fast Elixir language server (elixir-tools / remoteoss)
      (lsp-register-client
       (make-lsp-client
        :new-connection (lsp-stdio-connection
-                        '("/Users/suki/Projects/config/elixir/lexical/_build/dev/package/lexical/bin/start_lexical.sh"))
+                        '("/Users/suki/.local/share/mise/shims/dexter" "lsp"))
        :activation-fn (lsp-activate-on "elixir" "phoenix-heex")
-       :server-id 'lexical))
+       :server-id 'dexter-elixir))
 
      ;; Tailwind CSS as add-on server (heex, html, css)
      (let ((handlers (make-hash-table :test 'equal)))
