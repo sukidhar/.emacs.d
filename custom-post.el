@@ -331,13 +331,21 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
   :after (consult-gh embark)
   :demand t)
 
-(defun my/pkg-go-dev (path)
-  "Open pkg.go.dev for Go import PATH (e.g. github.com/charmbracelet/bubbletea)."
+(defun my/pkg-go-dev (path &optional arg)
+  "Open pkg.go.dev for Go import PATH.
+Default: xwidget-webkit (embedded WebKit) for full rendering.
+With \\[universal-argument]: system browser.
+With \\[universal-argument] \\[universal-argument]: eww (text mode)."
   (interactive
    (list (read-string "Go import path: "
                       (when (derived-mode-p 'go-mode 'go-ts-mode)
-                        (thing-at-point 'symbol t)))))
-  (browse-url (concat "https://pkg.go.dev/" path)))
+                        (thing-at-point 'symbol t)))
+         current-prefix-arg))
+  (let ((url (concat "https://pkg.go.dev/" path)))
+    (cond ((equal arg '(16)) (eww url))
+          (arg (browse-url url))
+          ((fboundp 'xwidget-webkit-browse-url) (xwidget-webkit-browse-url url))
+          (t (eww url)))))
 
 (use-package apheleia
   :ensure t
