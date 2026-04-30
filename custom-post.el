@@ -179,6 +179,9 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
     (define-key docs-map "g" #'consult-gh-search-repos)
     (define-key docs-map "f" #'consult-gh-find-file)
     (define-key docs-map "G" #'my/pkg-go-dev)
+    (define-key docs-map "s" #'my/google)
+    (define-key docs-map "e" #'my/hexdocs)
+    (define-key docs-map "u" #'my/browse-url)
     (helix-define-key 'space "h" docs-map))
   (helix-define-key 'space "y" #'helix-kill-ring-save)
   (helix-define-key 'space "Y" #'kill-ring-save)
@@ -331,21 +334,71 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
   :after (consult-gh embark)
   :demand t)
 
+(add-to-list 'display-buffer-alist
+             '("\\*\\(xwidget-webkit\\|eww\\)"
+               (display-buffer-in-side-window)
+               (side . right)
+               (slot . 0)
+               (window-width . 0.5)
+               (preserve-size . (t . nil))))
+
+(defun my/open-url (url &optional arg)
+  "Open URL with the configured browser dispatch.
+Default: xwidget-webkit, routed through `display-buffer' so the
+side-window rule applies. ARG = `(4)' opens in the system browser,
+`(16)' falls back to eww."
+  (cond ((equal arg '(16)) (eww url))
+        (arg (browse-url url))
+        ((fboundp 'xwidget-webkit-browse-url)
+         ;; xwidget-webkit-new-session uses `switch-to-buffer', which
+         ;; ignores `display-buffer-alist'. Redirect it to `pop-to-buffer'.
+         (cl-letf (((symbol-function 'switch-to-buffer) #'pop-to-buffer))
+           (xwidget-webkit-browse-url url)))
+        (t (eww url))))
+
+(defun my/browse-url (url &optional arg)
+  "Open URL via the configured browser dispatch. See `my/open-url' for ARG."
+  (interactive
+   (list (read-string "URL: "
+                      (or (and (use-region-p)
+                               (buffer-substring-no-properties
+                                (region-beginning) (region-end)))
+                          (thing-at-point 'url t)
+                          "https://"))
+         current-prefix-arg))
+  (my/open-url url arg))
+
+(defun my/google (query &optional arg)
+  "Google QUERY. See `my/open-url' for ARG semantics."
+  (interactive
+   (list (read-string "Google: "
+                      (or (and (use-region-p)
+                               (buffer-substring-no-properties
+                                (region-beginning) (region-end)))
+                          (thing-at-point 'symbol t)))
+         current-prefix-arg))
+  (my/open-url (concat "https://www.google.com/search?q="
+                       (url-hexify-string query))
+               arg))
+
+(defun my/hexdocs (package &optional arg)
+  "Open hexdocs.pm for Elixir/Erlang PACKAGE. See `my/open-url' for ARG."
+  (interactive
+   (list (read-string "Hex package: "
+                      (when (derived-mode-p 'elixir-mode 'elixir-ts-mode
+                                            'erlang-mode 'heex-ts-mode)
+                        (thing-at-point 'symbol t)))
+         current-prefix-arg))
+  (my/open-url (concat "https://hexdocs.pm/" package) arg))
+
 (defun my/pkg-go-dev (path &optional arg)
-  "Open pkg.go.dev for Go import PATH.
-Default: xwidget-webkit (embedded WebKit) for full rendering.
-With \\[universal-argument]: system browser.
-With \\[universal-argument] \\[universal-argument]: eww (text mode)."
+  "Open pkg.go.dev for Go import PATH. See `my/open-url' for ARG."
   (interactive
    (list (read-string "Go import path: "
                       (when (derived-mode-p 'go-mode 'go-ts-mode)
                         (thing-at-point 'symbol t)))
          current-prefix-arg))
-  (let ((url (concat "https://pkg.go.dev/" path)))
-    (cond ((equal arg '(16)) (eww url))
-          (arg (browse-url url))
-          ((fboundp 'xwidget-webkit-browse-url) (xwidget-webkit-browse-url url))
-          (t (eww url)))))
+  (my/open-url (concat "https://pkg.go.dev/" path) arg))
 
 (use-package apheleia
   :ensure t
