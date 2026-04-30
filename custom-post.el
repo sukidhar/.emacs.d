@@ -104,6 +104,15 @@
   (let ((project-map (make-sparse-keymap)))
     (define-key project-map "p" #'project-switch-project)
     (helix-define-key 'space "p" project-map))
+  (let ((docs-map (make-sparse-keymap)))
+    (define-key docs-map "h" #'devdocs-dwim)
+    (define-key docs-map "l" #'devdocs-lookup)
+    (define-key docs-map "i" #'devdocs-install)
+    (define-key docs-map "p" #'devdocs-peruse)
+    (define-key docs-map "g" #'consult-gh-search-repos)
+    (define-key docs-map "f" #'consult-gh-find-file)
+    (define-key docs-map "G" #'my/pkg-go-dev)
+    (helix-define-key 'space "h" docs-map))
   (helix-define-key 'goto "w" #'avy-goto-char-timer)
   (helix-define-key 'normal (kbd "C-`") #'vterm-toggle)
   (helix-define-key 'insert (kbd "C-`") #'vterm-toggle)
@@ -149,6 +158,50 @@
 
 (with-eval-after-load 'lsp-mode
   (add-to-list 'lsp-disabled-clients 'jsts-ls))
+
+(with-eval-after-load 'devdocs
+  (dolist (m '(go-mode go-ts-mode))
+    (add-hook (intern (format "%s-hook" m))
+              (lambda () (setq-local devdocs-current-docs '("go"))))))
+
+(use-package consult-gh
+  :ensure t
+  :commands (consult-gh-search-repos consult-gh-find-file
+             consult-gh-search-issues consult-gh-search-prs)
+  :config
+  (setq consult-gh-show-preview t
+        consult-gh-preview-key "M-o"
+        consult-gh-repo-preview-major-mode 'markdown-mode)
+  (advice-add 'consult-gh--call-process :around
+              (lambda (orig &rest args)
+                (let ((coding-system-for-read 'utf-8)
+                      (coding-system-for-write 'utf-8))
+                  (apply orig args))))
+  (dolist (cmd '(consult-gh-search-repos consult-gh-search-issues
+                 consult-gh-search-prs consult-gh-search-code
+                 consult-gh-find-file))
+    (advice-add cmd :around
+                (lambda (orig &rest args)
+                  (let ((consult-async-split-style nil))
+                    (apply orig args)))))
+  (advice-add 'consult-gh--get-split-style-character :around
+              (lambda (orig &optional style)
+                (if (or style consult-async-split-style)
+                    (funcall orig style)
+                  ""))))
+
+(use-package consult-gh-embark
+  :ensure t
+  :after (consult-gh embark)
+  :demand t)
+
+(defun my/pkg-go-dev (path)
+  "Open pkg.go.dev for Go import PATH (e.g. github.com/charmbracelet/bubbletea)."
+  (interactive
+   (list (read-string "Go import path: "
+                      (when (derived-mode-p 'go-mode 'go-ts-mode)
+                        (thing-at-point 'symbol t)))))
+  (browse-url (concat "https://pkg.go.dev/" path)))
 
 (use-package apheleia
   :ensure t
