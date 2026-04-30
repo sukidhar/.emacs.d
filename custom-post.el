@@ -211,7 +211,10 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
                '("^\\*claudemacs" (display-buffer-in-side-window)
                  (side . right) (window-width . 0.4)))
   (with-eval-after-load 'eat
-    (define-key eat-semi-char-mode-map (kbd "C-c t") #'claudemacs-toggle-buffer))
+    (define-key eat-semi-char-mode-map (kbd "C-c t") #'claudemacs-toggle-buffer)
+    (define-key eat-semi-char-mode-map (kbd "<escape>") #'eat-self-input)
+    (define-key eat-semi-char-mode-map (kbd "s-v") #'eat-yank)
+    (define-key eat-semi-char-mode-map (kbd "M-v") #'eat-yank))
   (add-hook 'eat-exit-hook
             (lambda (_process)
               (when-let* ((buf (current-buffer))
@@ -224,6 +227,13 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
         (if (> (length command-line-args) 1)
             (current-buffer)
           (get-buffer-create dashboard-buffer-name))))
+
+(with-eval-after-load 'dashboard
+  (let ((open-map (make-sparse-keymap)))
+    (define-key open-map "p" #'project-switch-project)
+    (define-key open-map "f" #'find-file)
+    (define-key open-map "r" #'consult-recent-file)
+    (define-key dashboard-mode-map "o" open-map)))
 
 (setq auto-save-visited-interval 5)
 (auto-save-visited-mode +1)
