@@ -243,6 +243,16 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
   (setq pixel-scroll-precision-interpolate-page t
         pixel-scroll-precision-use-momentum t))
 
+(use-package gcmh
+  :ensure t
+  :demand t
+  :diminish gcmh-mode
+  :config
+  (setq gcmh-idle-delay 'auto
+        gcmh-auto-idle-delay-factor 10
+        gcmh-high-cons-threshold (* 64 1024 1024))
+  (gcmh-mode 1))
+
 (setq display-line-numbers-type 'relative)
 
 (defun my/scroll-down-half ()
@@ -268,9 +278,19 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
 (setq frame-title-format '("Catix - %b")
       icon-title-format frame-title-format)
 
+(with-eval-after-load 'lsp-mode
+  (setq lsp-completion-provider :none))
+
+(with-eval-after-load 'company
+  (global-company-mode -1)
+  (add-hook 'company-mode-hook
+            (lambda () (when company-mode (company-mode -1)))))
+
 (with-eval-after-load 'corfu
-  (when (fboundp 'global-company-mode) (global-company-mode -1))
-  (add-hook 'corfu-mode-hook (lambda () (when (bound-and-true-p company-mode) (company-mode -1)))))
+  (define-key corfu-map (kbd "TAB") #'corfu-next)
+  (define-key corfu-map (kbd "<tab>") #'corfu-next)
+  (define-key corfu-map (kbd "<backtab>") #'corfu-previous)
+  (define-key corfu-map (kbd "S-TAB") #'corfu-previous))
 
 (with-eval-after-load 'lsp-mode
   (add-to-list 'lsp-disabled-clients 'jsts-ls))

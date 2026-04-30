@@ -35,7 +35,8 @@
   "Setup fonts."
   (when (display-graphic-p)
     ;; Set default font
-    (cl-loop for font in '("FiraCode Nerd Font" "CaskaydiaCove Nerd Font"
+    (cl-loop for font in '("Maple Mono NF" "Maple Mono"
+                           "FiraCode Nerd Font" "CaskaydiaCove Nerd Font"
                            "Fira Code" "Cascadia Code" "Jetbrains Mono"
                            "SF Mono" "Menlo" "Hack" "Source Code Pro"
                            "Monaco" "DejaVu Sans Mono" "Consolas")
