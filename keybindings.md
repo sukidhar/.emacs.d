@@ -116,6 +116,7 @@ Press `SPC` in Normal state to open the leader.
 | Key | Action |
 |---|---|
 | `SPC g g` | lazygit (full-frame vterm) |
+| `SPC g f` | pick a changed file (modified + untracked) |
 | `SPC g l` | git-link (line URL) |
 | `SPC g L` | git-link to commit |
 | `SPC g h` | git-link homepage |

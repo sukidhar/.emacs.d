@@ -108,6 +108,19 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
                  (reusable-frames . visible)
                  (window-height . 0.3))))
 
+(defun my/find-changed-file ()
+  "Pick a git-changed file (modified or untracked) in the current project."
+  (interactive)
+  (require 'magit)
+  (let* ((root (magit-toplevel))
+         (files (delete-dups
+                 (append (magit-modified-files) (magit-untracked-files)))))
+    (if (null files)
+        (message "No changed files")
+      (find-file (expand-file-name
+                  (completing-read "Changed file: " files nil t)
+                  root)))))
+
 (defvar my/lazygit--prev-win-config nil)
 
 (defun my/lazygit--on-exit (process _msg)
@@ -130,12 +143,11 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
             (set-window-configuration my/lazygit--prev-win-config)
             (setq my/lazygit--prev-win-config nil)))
       (setq my/lazygit--prev-win-config (current-window-configuration))
-      (let ((default-directory (or (vc-root-dir) default-directory)))
-        (require 'vterm)
-        (setq vterm-shell "lazygit")
-        (setq vterm-kill-buffer-on-exit t)
+      (require 'vterm)
+      (let ((default-directory (or (vc-root-dir) default-directory))
+            (vterm-shell "lazygit")
+            (vterm-kill-buffer-on-exit t))
         (vterm "*lazygit*")
-        (setq vterm-shell (default-value 'vterm-shell))
         (set-process-sentinel (get-buffer-process "*lazygit*") #'my/lazygit--on-exit)))))
 
 (use-package helix
@@ -148,6 +160,7 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
   (helix-define-key 'normal (kbd "C-M-9") #'transwin-inc)
   (let ((git-map (make-sparse-keymap)))
     (define-key git-map "g" #'my/lazygit-toggle)
+    (define-key git-map "f" #'my/find-changed-file)
     (define-key git-map "l" #'git-link)
     (define-key git-map "L" #'git-link-commit)
     (define-key git-map "h" #'git-link-homepage)
@@ -196,6 +209,15 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
   (helix-define-key 'insert (kbd "C-`") #'vterm-toggle)
   (helix-define-key 'normal (kbd "C-~") #'vterm-toggle-cd)
   (helix-define-key 'insert (kbd "C-~") #'vterm-toggle-cd)
+  (helix-define-typable-command '("bc" "buffer-close") #'kill-current-buffer)
+  (helix-define-typable-command '("bc!" "buffer-close!")
+                                (lambda ()
+                                  (let ((kill-buffer-query-functions nil))
+                                    (set-buffer-modified-p nil)
+                                    (kill-current-buffer))))
+  (helix-define-typable-command '("bo" "buffer-only") #'delete-other-windows)
+  (helix-define-typable-command '("bn" "buffer-next") #'next-buffer)
+  (helix-define-typable-command '("bp" "buffer-previous") #'previous-buffer)
   (helix-mode))
 
 (use-package eat
