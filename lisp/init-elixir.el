@@ -94,6 +94,19 @@
        :activation-fn (lsp-activate-on "elixir" "phoenix-heex")
        :server-id 'dexter-elixir))
 
+     ;; next-ls — Elixir language server (elixir-tools/next-ls).
+     ;; Disabled by default; pick per-project via `my/elixir-pick-lsp'.
+     (lsp-register-client
+      (make-lsp-client
+       :new-connection (lsp-stdio-connection
+                        (lambda ()
+                          (list (or (executable-find "nextls")
+                                    "/Users/suki/.local/share/mise/shims/nextls")
+                                "--stdio")))
+       :activation-fn (lsp-activate-on "elixir" "phoenix-heex")
+       :server-id 'next-ls))
+     (add-to-list 'lsp-disabled-clients 'next-ls)
+
      ;; Tailwind CSS as add-on server (heex, html, css)
      (let ((handlers (make-hash-table :test 'equal)))
        (puthash "@/tailwindCSS/projectInitialized" #'ignore handlers)

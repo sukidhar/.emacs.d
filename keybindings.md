@@ -121,6 +121,12 @@ Press `SPC` in Normal state to open the leader.
 | `SPC g L` | git-link to commit |
 | `SPC g h` | git-link homepage |
 
+#### `SPC l` — lsp
+
+| Key | Action |
+|---|---|
+| `SPC l e` | pick Elixir LSP for project (dexter / next-ls), persists in `.dir-locals.el` |
+
 #### `SPC t` — toggle
 
 | Key | Action |

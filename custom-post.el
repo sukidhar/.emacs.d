@@ -88,6 +88,16 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
 (with-eval-after-load 'vterm
   (advice-add 'vterm--internal :around #'my/vterm-with-dotenv))
 
+(with-eval-after-load 'diff-hl
+  ;; Centaur's fringe bitmap is 1px tall and the face overrides foreground to
+  ;; `unspecified', so changes are effectively invisible. Render as glyphs in
+  ;; the margin instead.
+  (setq diff-hl-fringe-bmp-function nil)
+  (set-face-attribute 'diff-hl-insert nil :foreground "#22c55e" :background 'unspecified)
+  (set-face-attribute 'diff-hl-change nil :foreground "#f59e0b" :background 'unspecified)
+  (set-face-attribute 'diff-hl-delete nil :foreground "#ef4444" :background 'unspecified)
+  (diff-hl-margin-mode 1))
+
 (use-package vterm-toggle
   :ensure t
   :after vterm
@@ -97,7 +107,22 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
   (vterm-toggle-project-root t)
   (vterm-toggle-reset-window-configration-after-exit 'kill-window-only)
   :config
-  (add-hook 'vterm-mode-hook (lambda () (run-at-time 0 nil #'helix-insert)))
+  ;; In *lazygit* fully disable helix so every key (SPC, ESC, …) reaches
+  ;; lazygit. In any other vterm buffer, drop into helix-insert as before.
+  (add-hook 'vterm-mode-hook
+            (lambda ()
+              (let ((buf (current-buffer)))
+                (run-at-time 0 nil
+                             (lambda ()
+                               (when (buffer-live-p buf)
+                                 (with-current-buffer buf
+                                   (if (equal (buffer-name) "*lazygit*")
+                                       (progn
+                                         (when (bound-and-true-p helix-normal-mode)
+                                           (helix-normal-mode -1))
+                                         (when (bound-and-true-p helix-insert-mode)
+                                           (helix-insert-mode -1)))
+                                     (helix-insert)))))))))
   (add-to-list 'display-buffer-alist
                '((lambda (buffer-or-name _)
                    (let ((buffer (get-buffer buffer-or-name)))
@@ -107,6 +132,47 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
                  (display-buffer-reuse-window display-buffer-at-bottom)
                  (reusable-frames . visible)
                  (window-height . 0.3))))
+
+(defun my/elixir-pick-lsp ()
+  "Pick which Elixir LSP to use for the current project.
+Persists the choice to .dir-locals.el at the project root by
+overriding `lsp-disabled-clients' with the unselected server.
+Shuts down active workspaces, re-applies dir-locals to every
+Elixir buffer in the project, and reconnects LSP."
+  (interactive)
+  (unless (memq major-mode '(elixir-ts-mode elixir-mode heex-ts-mode))
+    (user-error "Run from an Elixir/HEEx buffer"))
+  (let* ((root (or (when-let ((p (project-current))) (project-root p))
+                   (vc-root-dir)
+                   (locate-dominating-file default-directory "mix.exs")
+                   default-directory))
+         (default-directory root)
+         (choice (intern (completing-read
+                          "Elixir LSP: "
+                          '("dexter-elixir" "next-ls") nil t nil nil
+                          "dexter-elixir")))
+         (disabled (pcase choice
+                     ('dexter-elixir '(next-ls))
+                     ('next-ls       '(dexter-elixir)))))
+    (save-window-excursion
+      (add-dir-local-variable nil 'lsp-disabled-clients disabled)
+      (save-buffer)
+      (kill-buffer))
+    (when (fboundp 'lsp-workspaces)
+      (dolist (ws (lsp-workspaces))
+        (when (fboundp 'lsp-workspace-shutdown)
+          (lsp-workspace-shutdown ws))))
+    (dolist (buf (buffer-list))
+      (with-current-buffer buf
+        (when (and buffer-file-name
+                   (file-in-directory-p buffer-file-name root)
+                   (memq major-mode
+                         '(elixir-ts-mode elixir-mode heex-ts-mode)))
+          (hack-dir-local-variables-non-file-buffer)
+          (when (fboundp 'lsp-deferred) (lsp-deferred)))))
+    (message "Elixir LSP for %s → %s (reconnecting)"
+             (file-name-nondirectory (directory-file-name root))
+             choice)))
 
 (defun my/find-changed-file ()
   "Pick a git-changed file (modified or untracked) in the current project."
@@ -158,6 +224,9 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
   (helix-define-key 'normal (kbd "C-M-7") #'transwin-toggle)
   (helix-define-key 'normal (kbd "C-M-8") #'transwin-dec)
   (helix-define-key 'normal (kbd "C-M-9") #'transwin-inc)
+  (let ((lsp-map (make-sparse-keymap)))
+    (define-key lsp-map "e" #'my/elixir-pick-lsp)
+    (helix-define-key 'space "l" lsp-map))
   (let ((git-map (make-sparse-keymap)))
     (define-key git-map "g" #'my/lazygit-toggle)
     (define-key git-map "f" #'my/find-changed-file)
