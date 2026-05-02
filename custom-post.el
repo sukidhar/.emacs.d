@@ -24,6 +24,33 @@
   (vterm-shell "/opt/homebrew/bin/fish -l")
 )
 
+(use-package blamer
+  :ensure t
+  :defer 1
+  :custom
+  (blamer-idle-time 0)
+  (blamer-min-offset 40)
+  (blamer-show-avatar-p nil)
+  (blamer-type 'both)
+  (blamer-prettify-time-p t)
+  (blamer-author-formatter "  %s, ")
+  (blamer-datetime-formatter "%s")
+  (blamer-commit-formatter " • %s")
+  (blamer-self-author-name "You")
+  (blamer-max-commit-message-length 70)
+  :custom-face
+  (blamer-face ((t :foreground "#7a88a8" :italic t)))
+  :config
+  (global-blamer-mode 1))
+
+(use-package nyan-mode
+  :ensure t
+  :hook (after-init . nyan-mode)
+  :custom
+  (nyan-animate-nyancat t)
+  (nyan-wavy-trail t)
+  (nyan-bar-length 24))
+
 (use-package git-link
   :ensure t
   :commands (git-link git-link-commit git-link-homepage)
@@ -133,6 +160,11 @@ Prefers `mix.exs' (Elixir) > VC root > `project-current' > `default-directory'."
                  (reusable-frames . visible)
                  (window-height . 0.3))))
 
+(with-eval-after-load 'lsp-mode
+  (add-hook 'sql-mode-hook #'lsp-deferred)
+  (when (fboundp 'sql-ts-mode)
+    (add-hook 'sql-ts-mode-hook #'lsp-deferred)))
+
 (defun my/elixir-pick-lsp ()
   "Pick which Elixir LSP to use for the current project.
 Persists the choice to .dir-locals.el at the project root by
@@ -175,17 +207,81 @@ Elixir buffer in the project, and reconnects LSP."
              choice)))
 
 (defun my/find-changed-file ()
-  "Pick a git-changed file (modified or untracked) in the current project."
+  "Pick a git-changed file with a status prefix (M/A/D/R/?)."
   (interactive)
   (require 'magit)
   (let* ((root (magit-toplevel))
-         (files (delete-dups
-                 (append (magit-modified-files) (magit-untracked-files)))))
-    (if (null files)
+         (default-directory (or root default-directory))
+         (lines (and root (magit-git-lines "status" "--porcelain=v1")))
+         entries)
+    (dolist (line lines)
+      (when (>= (length line) 4)
+        (let* ((xy   (substring line 0 2))
+               (rest (substring line 3))
+               (file (if (string-match " -> " rest)
+                         (substring rest (match-end 0))
+                       rest))
+               (tag-letter
+                (cond ((string= xy "??")          "?")
+                      ((string-match-p "D" xy)    "D")
+                      ((string-match-p "R" xy)    "R")
+                      ((string-match-p "[AC]" xy) "A")
+                      (t                          "M")))
+               (tag-face
+                (cond ((string= xy "??")          'diff-hl-insert)
+                      ((string-match-p "D" xy)    'diff-hl-delete)
+                      ((string-match-p "[ACR]" xy) 'diff-hl-insert)
+                      (t                          'diff-hl-change)))
+               (display (format "%s  %s"
+                                (propertize (format "[%s]" tag-letter) 'face tag-face)
+                                file)))
+          (push (cons display (cons xy file)) entries))))
+    (setq entries (nreverse entries))
+    (if (null entries)
         (message "No changed files")
-      (find-file (expand-file-name
-                  (completing-read "Changed file: " files nil t)
-                  root)))))
+      (let* ((choice (completing-read "Changed file: " (mapcar #'car entries) nil t))
+             (data   (cdr (assoc choice entries)))
+             (xy     (car data))
+             (file   (cdr data))
+             (path   (expand-file-name file root)))
+        (cond
+         ((string-match-p "D" xy)
+          (if (fboundp 'magit-find-file)
+              (magit-find-file "HEAD" path)
+            (message "Deleted: %s (use magit to view)" file)))
+         (t (find-file path)))))))
+
+(defun my/gh-clone--repo-name (url)
+  "Best-effort repo name from a gh-cloneable URL or owner/repo string."
+  (let ((s (replace-regexp-in-string "\\.git\\'" "" (string-trim url))))
+    (file-name-nondirectory (directory-file-name s))))
+
+(defun my/gh-clone-and-open (url parent)
+  "Clone GitHub URL into PARENT directory and open it as a project.
+URL accepts anything `gh repo clone' accepts: full https/ssh URL or owner/repo."
+  (interactive
+   (list (read-string "GitHub URL or owner/repo: ")
+         (read-directory-name "Clone into folder: " "~/")))
+  (let* ((parent (expand-file-name parent))
+         (name (my/gh-clone--repo-name url))
+         (target (expand-file-name name parent)))
+    (unless (file-directory-p parent) (make-directory parent t))
+    (if (file-directory-p target)
+        (when (y-or-n-p (format "%s already exists. Open it? " target))
+          (let ((default-directory target)) (project-switch-project target)))
+      (message "Cloning %s into %s..." url target)
+      (let ((proc (start-process "gh-clone" "*gh-clone*"
+                                 "gh" "repo" "clone" url target)))
+        (set-process-sentinel
+         proc
+         (lambda (p _ev)
+           (if (and (eq (process-status p) 'exit)
+                    (= (process-exit-status p) 0))
+               (progn
+                 (message "Cloned to %s" target)
+                 (let ((default-directory target))
+                   (project-switch-project target)))
+             (message "gh clone failed; see *gh-clone*"))))))))
 
 (defvar my/lazygit--prev-win-config nil)
 
@@ -197,6 +293,45 @@ Elixir buffer in the project, and reconnects LSP."
     (when my/lazygit--prev-win-config
       (set-window-configuration my/lazygit--prev-win-config)
       (setq my/lazygit--prev-win-config nil))))
+
+(defun my/sqls--config-path ()
+  (expand-file-name "sqls/config.yml"
+                    (or (getenv "XDG_CONFIG_HOME") "~/.config")))
+
+(defun my/sqls--reload ()
+  "Shut down and re-attach sqls in every live SQL buffer."
+  (when (fboundp 'lsp-workspaces)
+    (let* ((sql-bufs (seq-filter
+                      (lambda (b)
+                        (with-current-buffer b
+                          (or (derived-mode-p 'sql-mode)
+                              (and (fboundp 'sql-ts-mode)
+                                   (derived-mode-p 'sql-ts-mode)))))
+                      (buffer-list)))
+           (workspaces (delete-dups
+                        (apply #'append
+                               (mapcar (lambda (b)
+                                         (with-current-buffer b (lsp-workspaces)))
+                                       sql-bufs)))))
+      (dolist (ws workspaces)
+        (when (fboundp 'lsp-workspace-shutdown)
+          (lsp-workspace-shutdown ws)))
+      (dolist (b sql-bufs)
+        (with-current-buffer b
+          (when (fboundp 'lsp-deferred) (lsp-deferred))))
+      (when sql-bufs
+        (message "sqls reloaded for %d buffer(s)" (length sql-bufs))))))
+
+(defun my/sqls-config ()
+  "Open the sqls connections YAML; saving reloads sqls in live SQL buffers."
+  (interactive)
+  (let ((path (my/sqls--config-path)))
+    (unless (file-exists-p path)
+      (make-directory (file-name-directory path) t)
+      (with-temp-file path
+        (insert "lowercaseKeywords: false\nconnections: []\n")))
+    (find-file path)
+    (add-hook 'after-save-hook #'my/sqls--reload nil t)))
 
 (defun my/lazygit-toggle ()
   "Toggle lazygit in a full-window vterm terminal."
@@ -227,9 +362,16 @@ Elixir buffer in the project, and reconnects LSP."
   (let ((lsp-map (make-sparse-keymap)))
     (define-key lsp-map "e" #'my/elixir-pick-lsp)
     (helix-define-key 'space "l" lsp-map))
+  (let ((sql-map (make-sparse-keymap)))
+    (define-key sql-map "c" #'my/sqls-config)
+    (define-key sql-map "s" #'lsp-sql-switch-connection)
+    (define-key sql-map "q" #'lsp-sql-execute-paragraph)
+    (helix-define-key 'space "s" sql-map))
   (let ((git-map (make-sparse-keymap)))
     (define-key git-map "g" #'my/lazygit-toggle)
     (define-key git-map "f" #'my/find-changed-file)
+    (define-key git-map "c" #'my/gh-clone-and-open)
+    (define-key git-map "b" #'blamer-mode)
     (define-key git-map "l" #'git-link)
     (define-key git-map "L" #'git-link-commit)
     (define-key git-map "h" #'git-link-homepage)

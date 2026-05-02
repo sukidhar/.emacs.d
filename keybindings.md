@@ -117,6 +117,8 @@ Press `SPC` in Normal state to open the leader.
 |---|---|
 | `SPC g g` | lazygit (full-frame vterm) |
 | `SPC g f` | pick a changed file (modified + untracked) |
+| `SPC g c` | gh clone URL/owner-repo into chosen folder, open as project |
+| `SPC g b` | toggle inline blamer (GitLens-style ghost text) for current buffer |
 | `SPC g l` | git-link (line URL) |
 | `SPC g L` | git-link to commit |
 | `SPC g h` | git-link homepage |
@@ -126,6 +128,14 @@ Press `SPC` in Normal state to open the leader.
 | Key | Action |
 |---|---|
 | `SPC l e` | pick Elixir LSP for project (dexter / next-ls), persists in `.dir-locals.el` |
+
+#### `SPC s` — sql (sqls language server)
+
+| Key | Action |
+|---|---|
+| `SPC s c` | open `~/.config/sqls/config.yml` (saves reload sqls in live SQL buffers) |
+| `SPC s s` | switch active sqls connection |
+| `SPC s q` | execute SQL paragraph at point against active connection |
 
 #### `SPC t` — toggle
 
