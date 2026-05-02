@@ -409,6 +409,7 @@ URL accepts anything `gh repo clone' accepts: full https/ssh URL or owner/repo."
     (helix-define-key 'space "h" docs-map))
   (helix-define-key 'space "y" #'helix-kill-ring-save)
   (helix-define-key 'space "Y" #'kill-ring-save)
+  (helix-define-key 'space "r" #'lsp-rename)
   (helix-define-key 'normal (kbd "C-u") #'my/scroll-up-half)
   (helix-define-key 'normal (kbd "C-d") #'my/scroll-down-half)
   (helix-define-key 'insert (kbd "C-u") #'my/scroll-up-half)
